@@ -1,0 +1,4 @@
+interface:
+  display_name: "Codex Adversarial Brainstorm"
+  short_description: "Codex-led debate with Claude Code"
+  default_prompt: "Use $codex-adversarial-brainstorm to compare implementation approaches and pressure-test the plan with Claude Code."
