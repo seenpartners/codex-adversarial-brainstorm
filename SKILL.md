@@ -10,18 +10,34 @@ Use this skill to make Codex lead a structured debate while Claude Code acts as 
 ## Workflow
 
 1. Inspect the repository independently and form Codex Position A before invoking Claude.
-2. Run `scripts/run_claude_challenger.py` with the raw topic, constraints, current working directory, and only the scoped files Claude should inspect.
-3. Do not include Codex Position A in Claude's first `independent` prompt.
-4. Ask Claude for Position B through the bridge.
-5. Compare Position A and Position B. Run two debate rounds by default, using `--round rebuttal` only after Claude has produced an independent response.
-6. Produce a final decision report with the selected approach, rejected options, risks, open questions, and verification steps.
+2. Resolve the skill directory as the directory containing this `SKILL.md`.
+3. Run the bridge script by absolute path with the raw topic, constraints, current working directory, and only the scoped files Claude should inspect.
+4. Do not include Codex Position A in Claude's first `independent` prompt.
+5. Ask Claude for Position B through the bridge.
+6. Compare Position A and Position B. Run two debate rounds by default, using `--round rebuttal` only after Claude has produced an independent response.
+7. Produce a final decision report with the selected approach, rejected options, risks, open questions, and verification steps.
 
 ## Bridge
 
-Use the bundled bridge from this skill directory:
+Use the bundled bridge from this skill directory. Do not stop after reading `SKILL.md` or the script; execute the bridge unless the user only asked for an explanation.
+
+From PowerShell on this machine:
+
+```powershell
+python C:\Users\Milan\.codex\skills\codex-adversarial-brainstorm\scripts\run_claude_challenger.py `
+  --cwd <workspace> `
+  --topic "<text>" `
+  --constraints "<text>" `
+  --files "<comma-separated optional paths>" `
+  --round independent `
+  --timeout 900 `
+  --json
+```
+
+Portable form after resolving the skill directory:
 
 ```bash
-python scripts/run_claude_challenger.py \
+python <skill-dir>/scripts/run_claude_challenger.py \
   --cwd <workspace> \
   --topic "<text>" \
   --constraints "<text>" \

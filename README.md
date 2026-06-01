@@ -7,7 +7,7 @@ Codex remains the lead agent. Claude Code is invoked through the bundled bridge 
 ## Requirements
 
 - Codex with skills support
-- Python 3.9 or newer
+- Python 3.10 or newer
 - Claude Code CLI installed and logged in locally
 - `claude` available on `PATH`
 
@@ -35,7 +35,7 @@ Use $codex-adversarial-brainstorm to compare implementation approaches and press
 The bridge can also be run directly:
 
 ```powershell
-python scripts\run_claude_challenger.py `
+python C:\Users\Milan\.codex\skills\codex-adversarial-brainstorm\scripts\run_claude_challenger.py `
   --cwd C:\path\to\workspace `
   --topic "Compare two approaches for this refactor" `
   --constraints "Read-only; no file edits" `
