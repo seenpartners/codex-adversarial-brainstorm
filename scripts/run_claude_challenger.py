@@ -6,9 +6,12 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import queue
 import shutil
 import subprocess
 import sys
+import threading
+import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
@@ -16,6 +19,7 @@ from typing import Any
 
 REQUIRED_SECTIONS = (
     "Research summary",
+    "Reasoning summary",
     "Proposal",
     "Evidence",
     "Risks",
@@ -80,6 +84,7 @@ Rules:
 - Use only read/search style investigation.
 - If evidence is unavailable, say what is missing instead of guessing.
 - Prefer concrete file paths, commands inspected, and repository observations over generic advice.
+- Explain your conclusions with a concise user-visible reasoning summary, evidence, assumptions, and tradeoffs. Do not expose hidden chain-of-thought.
 - Always return all required sections, even when the topic is underspecified.
 
 Working directory:
@@ -101,17 +106,25 @@ If the request is too underspecified to make a proposal, still return the requir
 """
 
 
-def run_claude(prompt: str, cwd: str, timeout: int) -> subprocess.CompletedProcess[str]:
+def build_claude_command(stream: bool = False) -> list[str]:
+    output_format = "stream-json" if stream else "json"
     cmd = [
         "claude",
         "-p",
         "--output-format",
-        "json",
+        output_format,
         "--permission-mode",
         "plan",
         "--tools",
         "Read,Grep,Glob",
     ]
+    if stream:
+        cmd.extend(["--include-partial-messages", "--verbose"])
+    return cmd
+
+
+def run_claude(prompt: str, cwd: str, timeout: int) -> subprocess.CompletedProcess[str]:
+    cmd = build_claude_command()
     return subprocess.run(
         cmd,
         input=prompt,
@@ -120,6 +133,103 @@ def run_claude(prompt: str, cwd: str, timeout: int) -> subprocess.CompletedProce
         capture_output=True,
         timeout=timeout,
     )
+
+
+def _read_pipe(pipe: Any, name: str, events: queue.Queue[tuple[str, str]]) -> None:
+    try:
+        for line in iter(pipe.readline, ""):
+            events.put((name, line))
+    finally:
+        pipe.close()
+
+
+def sanitize_stream_line(line: str) -> str | None:
+    try:
+        payload = json.loads(line)
+    except json.JSONDecodeError:
+        return line
+
+    if payload.get("type") == "stream_event":
+        event = payload.get("event", {})
+        event_type = event.get("type")
+        if event_type == "content_block_start" and event.get("content_block", {}).get("type") == "thinking":
+            return None
+        if event_type == "content_block_delta":
+            delta_type = event.get("delta", {}).get("type", "")
+            if delta_type in {"thinking_delta", "signature_delta"}:
+                return None
+
+    message = payload.get("message")
+    if isinstance(message, dict) and isinstance(message.get("content"), list):
+        message["content"] = [item for item in message["content"] if item.get("type") != "thinking"]
+        if not message["content"] and payload.get("type") == "assistant":
+            return None
+
+    return json.dumps(payload, ensure_ascii=False) + "\n"
+
+
+def run_claude_stream(prompt: str, cwd: str, timeout: int) -> int:
+    cmd = build_claude_command(stream=True)
+    proc = subprocess.Popen(
+        cmd,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        cwd=cwd,
+        bufsize=1,
+    )
+    assert proc.stdin is not None
+    assert proc.stdout is not None
+    assert proc.stderr is not None
+
+    proc.stdin.write(prompt)
+    proc.stdin.close()
+
+    events: queue.Queue[tuple[str, str]] = queue.Queue()
+    stdout_reader = threading.Thread(target=_read_pipe, args=(proc.stdout, "stdout", events), daemon=True)
+    stderr_reader = threading.Thread(target=_read_pipe, args=(proc.stderr, "stderr", events), daemon=True)
+    stdout_reader.start()
+    stderr_reader.start()
+
+    started = time.monotonic()
+    timed_out = False
+    while proc.poll() is None or not events.empty():
+        if timeout >= 0 and proc.poll() is None and time.monotonic() - started > timeout:
+            timed_out = True
+            proc.kill()
+        try:
+            stream_name, line = events.get(timeout=0.1)
+        except queue.Empty:
+            continue
+        if stream_name == "stdout":
+            sanitized = sanitize_stream_line(line)
+            if sanitized is not None:
+                print(sanitized, end="", flush=True)
+        else:
+            print(line, end="", file=sys.stderr, flush=True)
+
+    stdout_reader.join(timeout=1)
+    stderr_reader.join(timeout=1)
+    if timed_out:
+        print(
+            json.dumps(
+                {
+                    "ok": False,
+                    "error": {
+                        "kind": "timeout",
+                        "message": f"Claude did not finish within {timeout} seconds.",
+                        "timeout": timeout,
+                    },
+                    "prompt": prompt,
+                    "command": cmd,
+                },
+                ensure_ascii=False,
+            ),
+            flush=True,
+        )
+        return 1
+    return proc.returncode or 0
 
 
 def try_parse_json(stdout: str) -> Any | None:
@@ -164,6 +274,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--round", choices=("independent", "rebuttal"), required=True, help="Debate round type.")
     parser.add_argument("--timeout", type=int, default=900, help="Claude timeout in seconds.")
     parser.add_argument("--json", action="store_true", help="Emit a structured JSON result.")
+    parser.add_argument("--stream", action="store_true", help="Stream Claude Code stream-json events in realtime.")
     parser.add_argument("--print-prompt", action="store_true", help="Print the generated prompt and exit.")
     return parser.parse_args(argv)
 
@@ -173,16 +284,10 @@ def main(argv: list[str] | None = None) -> int:
     cwd = validate_cwd(args.cwd)
     files = split_files(args.files)
     prompt = build_prompt(args.topic, args.constraints, cwd, files, args.round)
-    command = [
-        "claude",
-        "-p",
-        "--output-format",
-        "json",
-        "--permission-mode",
-        "plan",
-        "--tools",
-        "Read,Grep,Glob",
-    ]
+    command = build_claude_command(stream=args.stream)
+
+    if args.stream and args.json:
+        raise SystemExit("--stream emits Claude stream-json directly; do not combine it with --json.")
 
     if args.print_prompt:
         print(prompt)
@@ -201,6 +306,9 @@ def main(argv: list[str] | None = None) -> int:
             ),
         )
         return write_result(result, args.json)
+
+    if args.stream:
+        return run_claude_stream(prompt, cwd, args.timeout)
 
     try:
         completed = run_claude(prompt, cwd, args.timeout)

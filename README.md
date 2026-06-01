@@ -45,6 +45,21 @@ python C:\Users\Milan\.codex\skills\codex-adversarial-brainstorm\scripts\run_cla
   --json
 ```
 
+For realtime terminal output, use `--stream` instead of `--json`:
+
+```powershell
+python C:\Users\Milan\.codex\skills\codex-adversarial-brainstorm\scripts\run_claude_challenger.py `
+  --cwd C:\path\to\workspace `
+  --topic "Compare two approaches for this refactor" `
+  --constraints "Read-only; no file edits" `
+  --files "src/app.ts,src/app.test.ts" `
+  --round independent `
+  --timeout 900 `
+  --stream
+```
+
+`--stream` emits Claude Code `stream-json` events as they arrive and uses Claude's required verbose stream mode internally. The bridge filters raw internal thinking/signature events and keeps user-visible text, tool events, and final result data. Terminal users can watch progress live; some Codex execution surfaces may still buffer command output until the command finishes.
+
 ## Interaction Model
 
 1. Codex inspects the repo and forms its own Position A.
@@ -60,6 +75,8 @@ claude -p --output-format json --permission-mode plan --tools Read,Grep,Glob
 ```
 
 The prompt also tells Claude not to create files, write `plan.md`, or produce any handoff artifact. The handoff back to Codex is stdout only.
+
+The bridge asks Claude for a `Reasoning summary`, meaning a concise user-visible rationale with evidence, assumptions, and tradeoffs. It does not request or expose hidden chain-of-thought, and stream mode filters raw internal thinking/signature events.
 
 ## Validate
 

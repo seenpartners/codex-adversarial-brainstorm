@@ -18,6 +18,7 @@ Required response shape:
 
 ```text
 Research summary:
+Reasoning summary:
 Proposal:
 Evidence:
 Risks:
@@ -26,6 +27,8 @@ Confidence:
 ```
 
 Claude must return all sections even when the topic is underspecified. Put blocking gaps under `Questions` instead of abandoning the format.
+
+`Reasoning summary` means a concise, user-visible rationale with evidence, assumptions, and tradeoffs. Do not ask for hidden chain-of-thought.
 
 ## Rebuttal Round
 
@@ -41,5 +44,6 @@ Tell Claude:
 - Do not create, edit, delete, move, format, or run modifying commands.
 - Do not write `plan.md`, temporary notes, or any handoff artifact.
 - Return the full challenger response through stdout only.
+- For realtime terminal use, prefer Claude Code `stream-json` events through the bridge's `--stream` mode. The bridge filters raw internal thinking/signature events; rely on `Reasoning summary` for user-visible rationale.
 - If evidence is unavailable, state what evidence is missing instead of guessing.
 - Prefer file paths and concrete observations over generic advice.

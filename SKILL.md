@@ -34,6 +34,21 @@ python C:\Users\Milan\.codex\skills\codex-adversarial-brainstorm\scripts\run_cla
   --json
 ```
 
+For realtime terminal output, use stream mode instead of `--json`:
+
+```powershell
+python C:\Users\Milan\.codex\skills\codex-adversarial-brainstorm\scripts\run_claude_challenger.py `
+  --cwd <workspace> `
+  --topic "<text>" `
+  --constraints "<text>" `
+  --files "<comma-separated optional paths>" `
+  --round independent `
+  --timeout 900 `
+  --stream
+```
+
+`--stream` emits Claude Code `stream-json` events as they arrive and uses Claude's required verbose stream mode internally. The bridge filters raw internal thinking/signature events and keeps user-visible text, tool events, and final result data. It is useful in a terminal, but some Codex tool surfaces may still buffer command output until the process exits.
+
 Portable form after resolving the skill directory:
 
 ```bash
@@ -66,6 +81,7 @@ For `rebuttal` rounds, include a concise neutral summary of the competing claims
 Claude's response should contain:
 
 - Research summary
+- Reasoning summary
 - Proposal
 - Evidence
 - Risks
@@ -73,6 +89,8 @@ Claude's response should contain:
 - Confidence
 
 Detailed prompt expectations are in `references/challenger-prompts.md`.
+
+Ask Claude for user-visible reasoning only: concise rationale, evidence, assumptions, and tradeoffs. Do not ask Claude to expose hidden chain-of-thought. The stream path must not expose raw thinking events.
 
 ## Report
 
