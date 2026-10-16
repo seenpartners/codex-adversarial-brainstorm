@@ -4,6 +4,39 @@ A Codex skill for adversarial solution exploration with Claude Code as a local, 
 
 Codex remains the lead agent. Claude Code is invoked through the bundled bridge script to independently inspect scoped repository context, challenge assumptions, and return a structured second opinion.
 
+## Claude Advisor
+
+This repository also includes [Claude Advisor](skills/claude-fable-advisor/SKILL.md), a separate skill for an independent technical opinion from **Claude Opus 5.5 at max effort**. Codex remains responsible for implementation and the final decision.
+
+The advisor can independently read and search the current project, including uncommitted files, and cite file-and-line evidence. It exposes only Read, Glob, and Grep; editing, command execution, network tools, and subagents are disabled. Common credential files and paths outside the selected workspace are restricted. Use `--brief-only` to disable workspace access, or `--workspace` with an absolute path to select a project explicitly.
+
+The bridge pins Opus 5.5, disables automatic model switching, validates the returned model and structured advice, and reports actionable authentication and compatibility errors. A provider refusal is respected rather than retried on an older model. Claude calls its highest reasoning effort `max`; there is no `ultra` effort value.
+
+### Advisor requirements and installation
+
+- Windows, Python 3.10 or newer, and Anthropic-signed Claude Code 2.x version 2.1.280 or later
+- An existing first-party Claude.ai team login with access to Opus 5.5; no API key is required
+
+Install the `skills/claude-fable-advisor` subdirectory as its own Codex skill. For example, ask Codex:
+
+```text
+Use $skill-installer to install Claude Advisor from https://github.com/seenpartners/codex-adversarial-brainstorm/tree/main/skills/claude-fable-advisor.
+```
+
+Then invoke it with:
+
+```text
+Use $claude-fable-advisor to inspect the current project and independently review this technical decision.
+```
+
+Each consultation requests a nominal $1 maximum and has a 480-second process timeout; final inference costs can exceed the requested budget. The skill permits at most two consultations per task. Its credential-file exclusions are filename rules, not content redaction; use a safe brief-only summary when source content itself must not be shared.
+
+Run the advisor's standalone tests from this repository:
+
+```powershell
+python -m unittest discover -s skills/claude-fable-advisor/tests -v
+```
+
 ## Requirements
 
 - Codex with skills support

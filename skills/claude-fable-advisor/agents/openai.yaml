@@ -1,0 +1,7 @@
+interface:
+  display_name: "Claude Advisor"
+  short_description: "Opus 5.5 max review with project read access"
+  brand_color: "#6D5EF5"
+  default_prompt: "Use $claude-fable-advisor to inspect the current project read-only and provide an independent Opus 5.5 review at max effort of this technical decision."
+policy:
+  allow_implicit_invocation: true
